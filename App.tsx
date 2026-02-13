@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Contact, AppView } from './types';
 import Header from './components/Header';
 import CameraScanner from './components/CameraScanner';
@@ -9,58 +9,10 @@ import Button from './components/Button';
 import { extractBusinessCards } from './services/geminiService';
 import { exportToCSV } from './utils/exportUtils';
 
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-
-  interface Window {
-    // Making this optional to match potential environmental declarations and fix "identical modifiers" error
-    aistudio?: AIStudio;
-  }
-}
-
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SCAN');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showKeyPrompt, setShowKeyPrompt] = useState(false);
-
-  useEffect(() => {
-    const checkKeyStatus = async () => {
-      // Prioritize checking if the process variable is already populated
-      if (process.env.API_KEY && process.env.API_KEY !== "undefined" && process.env.API_KEY.length > 0) {
-        setShowKeyPrompt(false);
-        return;
-      }
-      
-      // Fallback to checking the aistudio selection status
-      if (window.aistudio) {
-        try {
-          const hasKey = await window.aistudio.hasSelectedApiKey();
-          setShowKeyPrompt(!hasKey);
-        } catch (e) {
-          setShowKeyPrompt(true);
-        }
-      } else {
-        setShowKeyPrompt(true);
-      }
-    };
-    checkKeyStatus();
-  }, []);
-
-  const handleSelectKey = async () => {
-    if (window.aistudio) {
-      try {
-        await window.aistudio.openSelectKey();
-        // Assume success to prevent race condition issues as per the PRD instructions
-        setShowKeyPrompt(false);
-      } catch (err) {
-        console.error("Failed to open key selector:", err);
-      }
-    }
-  };
 
   const handleImagesCaptured = useCallback(async (images: string[]) => {
     setIsLoading(true);
@@ -70,13 +22,7 @@ const App: React.FC = () => {
       setView('REVIEW');
     } catch (error: any) {
       console.error("Extraction error:", error);
-      if (error.message === "API_KEY_ERROR") {
-        setShowKeyPrompt(true);
-        alert("An API Key is required to scan business cards. Please select one.");
-        handleSelectKey();
-      } else {
-        alert("Extraction failed: " + error.message);
-      }
+      alert("Extraction failed: " + (error.message || "Please check your network and try again."));
     } finally {
       setIsLoading(false);
     }
@@ -102,18 +48,6 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-24 bg-gray-50 flex flex-col max-w-md mx-auto shadow-2xl overflow-hidden relative">
       <Header />
       
-      {showKeyPrompt && (
-        <div className="bg-amber-50 border-b border-amber-100 p-4 text-center sticky top-[73px] z-20 shadow-sm animate-in fade-in slide-in-from-top-2">
-          <p className="text-sm text-amber-800 font-medium mb-3">Please select a Gemini API Key to scan cards.</p>
-          <Button variant="primary" size="sm" onClick={handleSelectKey}>
-            Select API Key
-          </Button>
-          <p className="text-[10px] text-amber-600 mt-2 font-medium">
-            Requires a paid GCP project. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline hover:text-amber-700">Billing details</a>
-          </p>
-        </div>
-      )}
-
       <main className="flex-1 overflow-y-auto">
         {view === 'SCAN' && (
           <CameraScanner 

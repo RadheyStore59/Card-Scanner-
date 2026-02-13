@@ -3,13 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Contact, ScanResult } from "../types";
 
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
-  // Explicit check to prevent SDK from throwing "An API Key must be set when running in a browser"
-  // which happens during constructor execution if the key is falsy.
-  if (!process.env.API_KEY || process.env.API_KEY === "undefined" || process.env.API_KEY === "") {
-    throw new Error("API_KEY_ERROR");
-  }
-
-  // Create instance right before call to ensure latest API key from browser environment
+  // Directly initialize using the injected environment variable
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
   
@@ -78,7 +72,6 @@ Return ONLY valid JSON. Use "" for missing fields.`;
       }
     });
 
-    // Access the text property directly (not as a method)
     const resultText = response.text;
     if (!resultText) throw new Error("Empty AI response.");
 
@@ -99,18 +92,6 @@ Return ONLY valid JSON. Use "" for missing fields.`;
     }));
   } catch (error: any) {
     console.error("Gemini Extraction Error:", error);
-    
-    // Check if the error is related to missing/invalid credentials
-    if (
-      error.message?.includes("Requested entity was not found") || 
-      error.message?.includes("API key not found") ||
-      error.message?.includes("API_KEY_ERROR") ||
-      error.status === 403 ||
-      error.status === 401
-    ) {
-      throw new Error("API_KEY_ERROR");
-    }
-    
     throw new Error(error.message || "Failed to analyze images. Try a clearer photo.");
   }
 };
