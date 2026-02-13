@@ -1,18 +1,19 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Contact, ScanResult } from "../types";
+import { Contact } from "../types";
 
+// Extracts business card data from a set of base64 image strings using Gemini 3 Pro.
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
+  // Directly initialize using the injected environment variable as per guidelines
   const apiKey = process.env.API_KEY;
 
-  // SDK safety check: Prevent initialization if key is missing to avoid "must be set" browser error
-  if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("API_KEY_MISSING: No Gemini API key found. Please connect your key to continue.");
+  if (!apiKey) {
+    throw new Error("API Key is missing from the execution context.");
   }
 
-  // Directly initialize using the injected environment variable
   const ai = new GoogleGenAI({ apiKey });
-  const model = 'gemini-3-flash-preview';
+  // Using gemini-3-pro-preview for high accuracy extraction of structured data from images
+  const model = 'gemini-3-pro-preview';
   
   const imageParts = base64Images.map((img) => {
     const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
@@ -40,7 +41,7 @@ For each person found, include:
 - linkedin (LinkedIn)
 - notes (Extra info like slogans or certifications)
 
-Return ONLY valid JSON. Use "" for missing fields.`;
+Return ONLY valid JSON. Use empty strings for missing fields.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -76,35 +77,28 @@ Return ONLY valid JSON. Use "" for missing fields.`;
             }
           }
         }
-      }
+      },
     });
 
-    const resultText = response.text;
-    if (!resultText) throw new Error("Empty AI response.");
-
-    const parsed: ScanResult = JSON.parse(resultText.trim());
-    
-    return (parsed.contacts || []).map((c: any, i: number) => ({
-      id: `contact-${Date.now()}-${i}`,
-      name: String(c.name || '').trim() || 'Unknown',
-      title: String(c.title || '').trim(),
-      company: String(c.company || '').trim(),
-      email: String(c.email || '').trim(),
-      phone: String(c.phone || '').trim(),
-      website: String(c.website || '').trim(),
-      address: String(c.address || '').trim(),
-      linkedin: String(c.linkedin || '').trim(),
-      notes: String(c.notes || '').trim(),
-      isEdited: false
-    }));
-  } catch (error: any) {
-    console.error("Gemini Extraction Error:", error);
-    
-    // Check for specific API auth errors
-    if (error.status === 401 || error.status === 403 || error.message?.includes("API key")) {
-      throw new Error("API_KEY_MISSING: Your API key is invalid or lacks permissions.");
+    // Extract text from the response using the .text property
+    const jsonStr = response.text;
+    if (!jsonStr) {
+      throw new Error("No response text from Gemini API");
     }
 
-    throw new Error(error.message || "Failed to analyze images. Try a clearer photo.");
+    // Parse the JSON output to extract contact list
+    const result = JSON.parse(jsonStr.trim());
+    
+    // Map data to local Contact type and ensure unique IDs
+    const contacts: Contact[] = (result.contacts || []).map((c: any) => ({
+      ...c,
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+      isEdited: false
+    }));
+
+    return contacts;
+  } catch (error) {
+    console.error("Gemini API Error during extraction:", error);
+    throw error;
   }
 };

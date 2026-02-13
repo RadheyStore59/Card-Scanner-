@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Contact, AppView } from './types';
 import Header from './components/Header';
 import CameraScanner from './components/CameraScanner';
@@ -9,44 +9,10 @@ import Button from './components/Button';
 import { extractBusinessCards } from './services/geminiService';
 import { exportToCSV } from './utils/exportUtils';
 
-declare global {
-  // Fix: Use the established AIStudio type name to match existing global declarations
-  interface Window {
-    aistudio?: AIStudio;
-  }
-}
-
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('SCAN');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [needsKey, setNeedsKey] = useState(false);
-
-  // Check if we have an API key or need to prompt for one
-  useEffect(() => {
-    const checkKey = async () => {
-      const envKey = process.env.API_KEY;
-      if (!envKey || envKey === "undefined" || envKey === "") {
-        if (window.aistudio) {
-          const hasKey = await window.aistudio.hasSelectedApiKey();
-          setNeedsKey(!hasKey);
-        } else {
-          // If no aistudio and no env key, we might be in a standard environment
-          // but we still can't proceed without a key.
-          setNeedsKey(true);
-        }
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleSelectKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      // Assume success and refresh key check
-      setNeedsKey(false);
-    }
-  };
 
   const handleImagesCaptured = useCallback(async (images: string[]) => {
     setIsLoading(true);
@@ -56,11 +22,7 @@ const App: React.FC = () => {
       setView('REVIEW');
     } catch (error: any) {
       console.error("Extraction error:", error);
-      if (error.message.includes("API_KEY_MISSING")) {
-        setNeedsKey(true);
-      } else {
-        alert("Extraction failed: " + (error.message || "Please check your network and try again."));
-      }
+      alert("Extraction failed: " + (error.message || "Please ensure your environment has an API key configured."));
     } finally {
       setIsLoading(false);
     }
@@ -81,33 +43,6 @@ const App: React.FC = () => {
     exportToCSV(contacts);
     alert("Exported to CSV! Ready for Google Sheets.");
   };
-
-  if (needsKey) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
-        <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mb-8 text-indigo-600">
-          <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-          </svg>
-        </div>
-        <h1 className="text-2xl font-black text-gray-900 mb-4 tracking-tight">Setup Required</h1>
-        <p className="text-gray-500 mb-8 leading-relaxed">
-          To extract data from business cards, you need to connect your Gemini API key. Please use a key from a paid GCP project.
-        </p>
-        <Button variant="primary" size="lg" className="w-full" onClick={handleSelectKey}>
-          Connect Gemini API
-        </Button>
-        <a 
-          href="https://ai.google.dev/gemini-api/docs/billing" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="mt-6 text-sm font-bold text-indigo-600 hover:underline"
-        >
-          Learn about Billing & Keys
-        </a>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen pb-24 bg-gray-50 flex flex-col max-w-md mx-auto shadow-2xl overflow-hidden relative">
