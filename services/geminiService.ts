@@ -3,6 +3,12 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Contact, ScanResult } from "../types";
 
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
+  // Explicit check to prevent SDK from throwing "An API Key must be set when running in a browser"
+  // which happens during constructor execution if the key is falsy.
+  if (!process.env.API_KEY || process.env.API_KEY === "undefined" || process.env.API_KEY === "") {
+    throw new Error("API_KEY_ERROR");
+  }
+
   // Create instance right before call to ensure latest API key from browser environment
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
@@ -20,8 +26,8 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
     };
   });
 
-  const prompt = `Extract all contact information from these business card images.
-Return a JSON object with a "contacts" array.
+  const prompt = `Extract all contact information from these business card images. 
+Analyze the visual details carefully. Return a JSON object with a "contacts" array.
 For each person found, include:
 - name (Full Name)
 - title (Job Position)
@@ -31,7 +37,7 @@ For each person found, include:
 - website (URL)
 - address (Address)
 - linkedin (LinkedIn)
-- notes (Extra info)
+- notes (Extra info like slogans or certifications)
 
 Return ONLY valid JSON. Use "" for missing fields.`;
 
@@ -72,6 +78,7 @@ Return ONLY valid JSON. Use "" for missing fields.`;
       }
     });
 
+    // Access the text property directly (not as a method)
     const resultText = response.text;
     if (!resultText) throw new Error("Empty AI response.");
 
@@ -93,8 +100,14 @@ Return ONLY valid JSON. Use "" for missing fields.`;
   } catch (error: any) {
     console.error("Gemini Extraction Error:", error);
     
-    // Check if the error is related to missing/invalid entity (API Key issue)
-    if (error.message?.includes("Requested entity was not found") || error.message?.includes("API key not found")) {
+    // Check if the error is related to missing/invalid credentials
+    if (
+      error.message?.includes("Requested entity was not found") || 
+      error.message?.includes("API key not found") ||
+      error.message?.includes("API_KEY_ERROR") ||
+      error.status === 403 ||
+      error.status === 401
+    ) {
       throw new Error("API_KEY_ERROR");
     }
     
