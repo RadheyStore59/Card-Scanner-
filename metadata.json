@@ -1,6 +1,6 @@
 {
-  "name": "BizCard Scanner AI",
-  "description": "Scan multiple business cards using Gemini 2.5 Flash, extract contact data, and export to CSV or send personalized bulk emails.",
+  "name": "Radhey Cards Scanner",
+  "description": "Professional AI business card scanner powered by Gemini. Extract structured contact data and export to CSV or bulk email.",
   "requestFramePermissions": [
     "camera"
   ]

@@ -7,7 +7,8 @@ export const exportToCSV = (contacts: Contact[]) => {
   const csvContent = [
     headers.join(','),
     ...contacts.map(c => {
-      const row = [
+      // Create data row strictly following headers order
+      const rowData = [
         c.name,
         c.title,
         c.company,
@@ -19,12 +20,12 @@ export const exportToCSV = (contacts: Contact[]) => {
         c.notes
       ];
       
-      return row.map(val => {
+      return rowData.map(val => {
         // Ensure everything is a string, handle null/undefined, and escape quotes
         const strVal = String(val || '').trim();
         // Replace internal double quotes with two double quotes for CSV standard
-        // Also handle newlines by wrapping the whole value in quotes (already done below)
         const escaped = strVal.replace(/"/g, '""');
+        // Wrap the final value in double quotes to handle commas or newlines
         return `"${escaped}"`;
       }).join(',');
     })
@@ -34,7 +35,7 @@ export const exportToCSV = (contacts: Contact[]) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', `bizcards_${new Date().getTime()}.csv`);
+  link.setAttribute('download', `bizcards_export_${new Date().getTime()}.csv`);
   link.style.visibility = 'hidden';
   document.body.appendChild(link);
   link.click();
