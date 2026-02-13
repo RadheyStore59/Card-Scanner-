@@ -7,26 +7,76 @@ interface CameraScannerProps {
   isLoading: boolean;
 }
 
+const MAX_IMAGE_WIDTH = 1600;
+const JPEG_QUALITY = 0.8;
+
 const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoading }) => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [isChoosing, setIsChoosing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Utility to resize and compress images using canvas
+  const processImage = (base64Str: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Resize if too large
+        if (width > MAX_IMAGE_WIDTH) {
+          height = (MAX_IMAGE_WIDTH / width) * height;
+          width = MAX_IMAGE_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error("Canvas context failed"));
+
+        ctx.drawImage(img, 0, 0, width, height);
+        // Compress as JPEG
+        const compressedBase64 = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+        resolve(compressedBase64);
+      };
+      img.onerror = reject;
+      img.src = base64Str;
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const fileList: File[] = Array.from(files);
-    const readers = fileList.map((file: File) => {
-      return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target?.result as string);
-        reader.readAsDataURL(file);
-      });
-    });
-
     setIsChoosing(false);
-    Promise.all(readers).then(onImagesCaptured);
+    setIsProcessing(true);
+
+    try {
+      const fileList: File[] = Array.from(files);
+      const rawBase64Strings = await Promise.all(
+        fileList.map((file: File) => {
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => resolve(event.target?.result as string);
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+
+      // Compress all images to ensure payload size is manageable for mobile networks/API limits
+      const compressedStrings = await Promise.all(
+        rawBase64Strings.map(str => processImage(str))
+      );
+
+      onImagesCaptured(compressedStrings);
+    } catch (err) {
+      console.error("Image processing failed:", err);
+      alert("Error processing photos. Please try a different image.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const triggerCamera = (e: React.MouseEvent) => {
@@ -39,11 +89,13 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
     galleryInputRef.current?.click();
   };
 
+  const showLoading = isLoading || isProcessing;
+
   return (
     <div className="flex flex-col items-center justify-center space-y-10 p-8 min-h-[70vh]">
       <div 
         className="w-full max-w-sm aspect-[4/5] relative bg-white rounded-[40px] border-4 border-dashed border-gray-100 flex flex-col items-center justify-center transition-all hover:border-indigo-400 shadow-xl shadow-gray-100/50 overflow-hidden group" 
-        onClick={() => setIsChoosing(true)}
+        onClick={() => !showLoading && setIsChoosing(true)}
       >
         {!isChoosing ? (
           <div className="flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
@@ -136,7 +188,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
         </p>
       </div>
 
-      {isLoading && (
+      {showLoading && (
         <div className="fixed inset-0 bg-white/95 backdrop-blur-xl z-50 flex flex-col items-center justify-center p-10 text-center animate-in fade-in duration-300">
           <div className="w-28 h-28 relative">
              <div className="absolute inset-0 border-[6px] border-indigo-50 rounded-[35px]"></div>
@@ -147,9 +199,13 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
                 </svg>
              </div>
           </div>
-          <h2 className="text-2xl font-black text-gray-900 mt-10 mb-3 tracking-tight">Radhey AI Analyzing...</h2>
+          <h2 className="text-2xl font-black text-gray-900 mt-10 mb-3 tracking-tight">
+            {isProcessing ? "Processing Images..." : "Radhey AI Analyzing..."}
+          </h2>
           <div className="space-y-1">
-            <p className="text-indigo-600 font-bold text-xs uppercase tracking-widest">Optimizing Extraction</p>
+            <p className="text-indigo-600 font-bold text-xs uppercase tracking-widest">
+              {isProcessing ? "Optimizing for mobile" : "Optimizing Extraction"}
+            </p>
             <p className="text-gray-400 text-sm max-w-[200px] mx-auto">Formatting structured contact data for your review.</p>
           </div>
         </div>

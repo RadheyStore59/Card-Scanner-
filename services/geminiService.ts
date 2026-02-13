@@ -6,12 +6,19 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = 'gemini-3-flash-preview';
   
-  const imageParts = base64Images.map(img => ({
-    inlineData: {
-      data: img.split(',')[1] || img,
-      mimeType: 'image/jpeg'
-    }
-  }));
+  const imageParts = base64Images.map(img => {
+    // Robustly extract base64 data regardless of data URI prefix
+    const dataMatch = img.match(/^data:([^;]+);base64,(.+)$/);
+    const data = dataMatch ? dataMatch[2] : img;
+    const mimeType = dataMatch ? dataMatch[1] : 'image/jpeg';
+    
+    return {
+      inlineData: {
+        data: data,
+        mimeType: mimeType
+      }
+    };
+  });
 
   const prompt = `Analyze the provided image(s) of business cards and extract structured contact data. 
   Each image may contain multiple cards. For every distinct person found, extract:
@@ -64,7 +71,12 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
       }
     });
 
-    const resultText = response.text || '{"contacts": []}';
+    if (!response.text) {
+      console.warn("Gemini returned empty text response");
+      return [];
+    }
+
+    const resultText = response.text.trim();
     const parsed: ScanResult = JSON.parse(resultText);
     
     return (parsed.contacts || []).map((c: any) => ({
@@ -80,8 +92,12 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
       notes: String(c.notes || '').trim(),
       isEdited: false
     }));
-  } catch (error) {
-    console.error("Gemini Extraction Error:", error);
+  } catch (error: any) {
+    console.error("Gemini Extraction Error Details:", {
+      message: error.message,
+      stack: error.stack,
+      imagesCount: base64Images.length
+    });
     throw error;
   }
 };
