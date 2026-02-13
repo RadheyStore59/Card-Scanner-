@@ -6,14 +6,10 @@ import { Contact } from "../types";
  * Extracts business card data from a set of base64 image strings using Gemini 2.5 Flash.
  */
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
-  // Always get the latest API key from the environment
-  const apiKey = process.env.API_KEY;
-
-  if (!apiKey || apiKey === "undefined") {
-    throw new Error("API Key is missing from the execution context. Please connect your key.");
-  }
-
-  // Use a fresh instance to ensure the most up-to-date key is used
+  // Use the injected API key from the environment.
+  const apiKey = process.env.API_KEY || "";
+  
+  // Initialize AI client inside the function call context
   const ai = new GoogleGenAI({ apiKey });
   const model = 'gemini-2.5-flash';
   
@@ -84,7 +80,7 @@ Return ONLY valid JSON. Use empty strings for missing fields.`;
 
     const jsonStr = response.text;
     if (!jsonStr) {
-      throw new Error("No response text from Gemini API");
+      throw new Error("Empty response from AI");
     }
 
     const result = JSON.parse(jsonStr.trim());
@@ -105,8 +101,7 @@ Return ONLY valid JSON. Use empty strings for missing fields.`;
 
     return contacts;
   } catch (error: any) {
-    console.error("Gemini API Error during extraction:", error);
-    // Propagate errors to the UI for handling (e.g., key re-selection)
+    console.error("Gemini API Error:", error);
     throw error;
   }
 };
