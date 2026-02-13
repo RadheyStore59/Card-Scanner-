@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import Button from './Button';
 
 interface CameraScannerProps {
@@ -8,7 +8,9 @@ interface CameraScannerProps {
 }
 
 const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoading }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [isChoosing, setIsChoosing] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -23,45 +25,102 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
       });
     });
 
+    setIsChoosing(false);
     Promise.all(readers).then(onImagesCaptured);
   };
 
-  const triggerInput = () => {
-    fileInputRef.current?.click();
+  const triggerCamera = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    cameraInputRef.current?.click();
+  };
+
+  const triggerGallery = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    galleryInputRef.current?.click();
   };
 
   return (
     <div className="flex flex-col items-center justify-center space-y-10 p-8 min-h-[70vh]">
       <div 
-        className="w-full max-w-sm aspect-[4/5] relative bg-white rounded-[40px] border-4 border-dashed border-gray-100 flex flex-col items-center justify-center transition-all hover:border-indigo-400 hover:bg-white hover:shadow-2xl hover:shadow-indigo-100 group cursor-pointer shadow-xl shadow-gray-100/50" 
-        onClick={triggerInput}
+        className="w-full max-w-sm aspect-[4/5] relative bg-white rounded-[40px] border-4 border-dashed border-gray-100 flex flex-col items-center justify-center transition-all hover:border-indigo-400 shadow-xl shadow-gray-100/50 overflow-hidden group" 
+        onClick={() => setIsChoosing(true)}
       >
-        <div className="w-24 h-24 bg-indigo-50 rounded-[30px] flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-inner">
-          <svg className="w-12 h-12 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </div>
-        <div className="text-center space-y-2">
-          <p className="text-2xl font-black text-gray-900 tracking-tight">Radhey Scan</p>
-          <p className="text-sm text-gray-400 font-medium px-10">Capture or upload business cards to begin extraction</p>
-        </div>
-        
-        <div className="mt-8 flex items-center space-x-2 text-indigo-600 font-bold text-xs uppercase tracking-widest bg-indigo-50 px-4 py-2 rounded-full">
+        {!isChoosing ? (
+          <div className="flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+            <div className="w-24 h-24 bg-indigo-50 rounded-[30px] flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-inner">
+              <svg className="w-12 h-12 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-2xl font-black text-gray-900 tracking-tight">Radhey Scan</p>
+              <p className="text-sm text-gray-400 font-medium px-10">Tap to start scanning business cards</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center w-full h-full p-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Select Source</h3>
+            
+            <button 
+              onClick={triggerCamera}
+              className="w-full py-5 px-4 bg-indigo-600 text-white rounded-2xl flex items-center space-x-4 active:scale-95 transition-transform shadow-lg shadow-indigo-100"
+            >
+              <div className="bg-white/20 p-2 rounded-lg">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="font-bold">Capture from Camera</p>
+                <p className="text-[10px] opacity-80 uppercase font-black tracking-widest">Instant Scan</p>
+              </div>
+            </button>
+
+            <button 
+              onClick={triggerGallery}
+              className="w-full py-5 px-4 bg-white border-2 border-indigo-100 text-indigo-700 rounded-2xl flex items-center space-x-4 active:scale-95 transition-transform"
+            >
+              <div className="bg-indigo-50 p-2 rounded-lg">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="font-bold">Upload from Gallery</p>
+                <p className="text-[10px] text-indigo-400 uppercase font-black tracking-widest">Select Photos</p>
+              </div>
+            </button>
+
+            <Button variant="ghost" className="mt-4 text-gray-400 font-bold text-xs uppercase" onClick={(e) => { e.stopPropagation(); setIsChoosing(false); }}>
+              Cancel
+            </Button>
+          </div>
+        )}
+
+        <div className="absolute bottom-6 flex items-center space-x-2 text-indigo-600 font-bold text-[10px] uppercase tracking-widest bg-indigo-50 px-4 py-2 rounded-full">
            <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
           </span>
-          <span>Ready to Extract</span>
+          <span>Powered by Gemini</span>
         </div>
 
+        {/* Hidden Inputs */}
         <input 
           type="file" 
-          ref={fileInputRef}
+          ref={cameraInputRef}
+          onChange={handleFileChange}
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+        />
+        <input 
+          type="file" 
+          ref={galleryInputRef}
           onChange={handleFileChange}
           accept="image/*"
           multiple
-          capture="environment"
           className="hidden"
         />
       </div>
@@ -69,11 +128,11 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
       <div className="text-center max-w-xs">
         <div className="flex items-center justify-center space-x-2 mb-3">
           <div className="h-px w-8 bg-gray-200"></div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-[0.3em] font-black">AI Powered Engine</p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-[0.3em] font-black">AI Extraction Engine</p>
           <div className="h-px w-8 bg-gray-200"></div>
         </div>
         <p className="text-xs text-gray-500 leading-relaxed">
-          Proprietary AI instantly transforms card images into high-accuracy contact records ready for Sheets or Email.
+          Proprietary AI instantly transforms card images into high-accuracy contact records.
         </p>
       </div>
 
