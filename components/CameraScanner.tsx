@@ -59,7 +59,8 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
     setIsProcessing(true);
 
     try {
-      const fileList = Array.from(files);
+      // Fix: Explicitly cast to File[] to avoid 'unknown' type inference issues
+      const fileList = Array.from(files) as File[];
       const processedImages = [];
       
       for (const file of fileList) {
@@ -67,7 +68,8 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
           const reader = new FileReader();
           reader.onload = (event) => resolve(event.target?.result as string);
           reader.onerror = reject;
-          reader.readAsDataURL(file);
+          // Fix: Ensure the argument to readAsDataURL is typed as Blob
+          reader.readAsDataURL(file as Blob);
         });
         
         const compressed = await processImage(base64);

@@ -3,8 +3,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Contact, ScanResult } from "../types";
 
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
+  const apiKey = process.env.API_KEY;
+
+  // SDK safety check: Prevent initialization if key is missing to avoid "must be set" browser error
+  if (!apiKey || apiKey === "undefined" || apiKey === "") {
+    throw new Error("API_KEY_MISSING: No Gemini API key found. Please connect your key to continue.");
+  }
+
   // Directly initialize using the injected environment variable
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   const model = 'gemini-3-flash-preview';
   
   const imageParts = base64Images.map((img) => {
@@ -92,6 +99,12 @@ Return ONLY valid JSON. Use "" for missing fields.`;
     }));
   } catch (error: any) {
     console.error("Gemini Extraction Error:", error);
+    
+    // Check for specific API auth errors
+    if (error.status === 401 || error.status === 403 || error.message?.includes("API key")) {
+      throw new Error("API_KEY_MISSING: Your API key is invalid or lacks permissions.");
+    }
+
     throw new Error(error.message || "Failed to analyze images. Try a clearer photo.");
   }
 };
