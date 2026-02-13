@@ -15,7 +15,7 @@ const Header: React.FC = () => {
           </div>
         </div>
         <div className="text-[10px] font-extrabold bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md border border-indigo-100 uppercase tracking-tighter">
-          Gemini 2.5 Flash
+          Gemini 3 Flash
         </div>
       </div>
     </header>

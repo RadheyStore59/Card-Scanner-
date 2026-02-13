@@ -22,7 +22,8 @@ const App: React.FC = () => {
       setView('REVIEW');
     } catch (error: any) {
       console.error("Extraction error:", error);
-      alert("Extraction failed. Please ensure your environment is correctly configured and try again.");
+      // Display the actual error message to help diagnose the issue (e.g., missing API key)
+      alert(`Extraction failed: ${error.message}`);
     } finally {
       setIsLoading(false);
     }

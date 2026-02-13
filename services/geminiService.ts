@@ -3,15 +3,13 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Contact } from "../types";
 
 /**
- * Extracts business card data from a set of base64 image strings using Gemini 2.5 Flash.
+ * Extracts business card data from a set of base64 image strings using Gemini 3 Flash.
  */
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
-  // Use the injected API key from the environment.
-  const apiKey = process.env.API_KEY || "";
-  
-  // Initialize AI client inside the function call context
-  const ai = new GoogleGenAI({ apiKey });
-  const model = 'gemini-2.5-flash';
+  // Initialize AI client using the environment variable directly.
+  // The SDK expects the key to be provided in this format as a named parameter.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const model = 'gemini-3-flash-preview';
   
   const imageParts = base64Images.map((img) => {
     const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
@@ -80,7 +78,7 @@ Return ONLY valid JSON. Use empty strings for missing fields.`;
 
     const jsonStr = response.text;
     if (!jsonStr) {
-      throw new Error("Empty response from AI");
+      throw new Error("No text content returned from the model.");
     }
 
     const result = JSON.parse(jsonStr.trim());
@@ -102,6 +100,7 @@ Return ONLY valid JSON. Use empty strings for missing fields.`;
     return contacts;
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    throw error;
+    // Include the error message in the re-thrown error for better debugging in the UI
+    throw new Error(error.message || "An unknown error occurred during extraction.");
   }
 };
