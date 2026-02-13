@@ -7,8 +7,9 @@ interface CameraScannerProps {
   isLoading: boolean;
 }
 
-const MAX_IMAGE_WIDTH = 1600;
-const JPEG_QUALITY = 0.8;
+// Further reduced for ultra-reliability on mobile deployments
+const MAX_IMAGE_WIDTH = 1000; 
+const JPEG_QUALITY = 0.4; 
 
 const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoading }) => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -16,32 +17,37 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
   const [isChoosing, setIsChoosing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Utility to resize and compress images using canvas
   const processImage = (base64Str: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
 
-        // Resize if too large
-        if (width > MAX_IMAGE_WIDTH) {
-          height = (MAX_IMAGE_WIDTH / width) * height;
-          width = MAX_IMAGE_WIDTH;
+          if (width > MAX_IMAGE_WIDTH) {
+            height = (MAX_IMAGE_WIDTH / width) * height;
+            width = MAX_IMAGE_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error("Could not get canvas context");
+
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const compressedBase64 = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+          resolve(compressedBase64);
+        } catch (err) {
+          reject(err);
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error("Canvas context failed"));
-
-        ctx.drawImage(img, 0, 0, width, height);
-        // Compress as JPEG
-        const compressedBase64 = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
-        resolve(compressedBase64);
       };
-      img.onerror = reject;
+      img.onerror = () => reject(new Error("Image source failed to load."));
       img.src = base64Str;
     });
   };
@@ -54,26 +60,24 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
     setIsProcessing(true);
 
     try {
-      const fileList: File[] = Array.from(files);
-      const rawBase64Strings = await Promise.all(
-        fileList.map((file: File) => {
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (event) => resolve(event.target?.result as string);
-            reader.readAsDataURL(file);
-          });
-        })
-      );
+      const fileList = Array.from(files);
+      const processedImages = [];
+      
+      for (const file of fileList) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target?.result as string);
+          reader.onerror = () => reject(new Error("File reader failed."));
+          reader.readAsDataURL(file);
+        });
+        
+        const compressed = await processImage(base64);
+        processedImages.push(compressed);
+      }
 
-      // Compress all images to ensure payload size is manageable for mobile networks/API limits
-      const compressedStrings = await Promise.all(
-        rawBase64Strings.map(str => processImage(str))
-      );
-
-      onImagesCaptured(compressedStrings);
-    } catch (err) {
-      console.error("Image processing failed:", err);
-      alert("Error processing photos. Please try a different image.");
+      onImagesCaptured(processedImages);
+    } catch (err: any) {
+      alert("Mobile Error: " + (err.message || "Failed to process photo."));
     } finally {
       setIsProcessing(false);
     }
@@ -94,7 +98,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
   return (
     <div className="flex flex-col items-center justify-center space-y-10 p-8 min-h-[70vh]">
       <div 
-        className="w-full max-w-sm aspect-[4/5] relative bg-white rounded-[40px] border-4 border-dashed border-gray-100 flex flex-col items-center justify-center transition-all hover:border-indigo-400 shadow-xl shadow-gray-100/50 overflow-hidden group" 
+        className="w-full max-w-sm aspect-[4/5] relative bg-white rounded-[40px] border-4 border-dashed border-gray-100 flex flex-col items-center justify-center transition-all hover:border-indigo-400 shadow-xl shadow-gray-100/50 overflow-hidden group cursor-pointer" 
         onClick={() => !showLoading && setIsChoosing(true)}
       >
         {!isChoosing ? (
@@ -150,15 +154,6 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
           </div>
         )}
 
-        <div className="absolute bottom-6 flex items-center space-x-2 text-indigo-600 font-bold text-[10px] uppercase tracking-widest bg-indigo-50 px-4 py-2 rounded-full">
-           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
-          </span>
-          <span>Powered by Gemini</span>
-        </div>
-
-        {/* Hidden Inputs */}
         <input 
           type="file" 
           ref={cameraInputRef}
@@ -177,17 +172,6 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
         />
       </div>
 
-      <div className="text-center max-w-xs">
-        <div className="flex items-center justify-center space-x-2 mb-3">
-          <div className="h-px w-8 bg-gray-200"></div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-[0.3em] font-black">AI Extraction Engine</p>
-          <div className="h-px w-8 bg-gray-200"></div>
-        </div>
-        <p className="text-xs text-gray-500 leading-relaxed">
-          Proprietary AI instantly transforms card images into high-accuracy contact records.
-        </p>
-      </div>
-
       {showLoading && (
         <div className="fixed inset-0 bg-white/95 backdrop-blur-xl z-50 flex flex-col items-center justify-center p-10 text-center animate-in fade-in duration-300">
           <div className="w-28 h-28 relative">
@@ -200,13 +184,13 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
              </div>
           </div>
           <h2 className="text-2xl font-black text-gray-900 mt-10 mb-3 tracking-tight">
-            {isProcessing ? "Processing Images..." : "Radhey AI Analyzing..."}
+            {isProcessing ? "Optimizing Images..." : "Radhey AI Analyzing..."}
           </h2>
           <div className="space-y-1">
             <p className="text-indigo-600 font-bold text-xs uppercase tracking-widest">
-              {isProcessing ? "Optimizing for mobile" : "Optimizing Extraction"}
+              {isProcessing ? "Reducing File Size" : "Extracting Details"}
             </p>
-            <p className="text-gray-400 text-sm max-w-[200px] mx-auto">Formatting structured contact data for your review.</p>
+            <p className="text-gray-400 text-sm max-w-[200px] mx-auto">This may take a moment on slower connections.</p>
           </div>
         </div>
       )}

@@ -17,12 +17,14 @@ const App: React.FC = () => {
   const handleImagesCaptured = useCallback(async (images: string[]) => {
     setIsLoading(true);
     try {
+      console.log("Starting extraction with", images.length, "images...");
       const extracted = await extractBusinessCards(images);
       setContacts(prev => [...prev, ...extracted]);
       setView('REVIEW');
-    } catch (error) {
-      alert("Failed to analyze images. Please try again.");
-      console.error(error);
+    } catch (error: any) {
+      const msg = error.message || "Unknown analysis error.";
+      console.error("Analysis Error:", msg);
+      alert("Analysis failed: " + msg + "\n\nTry uploading a single clear image if you continue to have issues.");
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +117,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Scan Button when in review but few contacts */}
+      {/* Floating Scan Button */}
       {view === 'REVIEW' && (
         <button 
           onClick={() => setView('SCAN')}

@@ -3,36 +3,45 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Contact, ScanResult } from "../types";
 
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-flash-preview';
+  // Check for API Key presence
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === "YOUR_API_KEY") {
+    throw new Error("API Key is missing. Please check your deployment environment variables.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  // Using gemini-2.5-flash as requested by the PRD
+  const model = 'gemini-2.5-flash';
   
-  const imageParts = base64Images.map(img => {
-    // Robustly extract base64 data regardless of data URI prefix
-    const dataMatch = img.match(/^data:([^;]+);base64,(.+)$/);
-    const data = dataMatch ? dataMatch[2] : img;
-    const mimeType = dataMatch ? dataMatch[1] : 'image/jpeg';
+  const imageParts = base64Images.map((img, index) => {
+    const base64Data = img.split(',')[1] || img;
+    const mimeMatch = img.match(/^data:([^;]+);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
     
     return {
       inlineData: {
-        data: data,
+        data: base64Data,
         mimeType: mimeType
       }
     };
   });
 
-  const prompt = `Analyze the provided image(s) of business cards and extract structured contact data. 
-  Each image may contain multiple cards. For every distinct person found, extract:
-  - name (full name)
-  - title (job title)
-  - company (organization name)
-  - email (professional email)
-  - phone (phone number)
+  const prompt = `Act as a high-precision OCR and contact extraction engine. 
+  Extract structured contact data from the provided business card image(s).
+  Return a JSON object with a "contacts" array.
+  
+  For each person, extract:
+  - name (Full Name)
+  - title (Job Title)
+  - company (Company Name)
+  - email (Professional email)
+  - phone (Phone number)
   - website (URL)
-  - address (physical office/mailing address)
-  - linkedin (profile link or username)
-  - notes (any extra info like certifications or taglines)
+  - address (Physical address)
+  - linkedin (LinkedIn URL)
+  - notes (Any other info)
 
-  Return a JSON object with a "contacts" array. Ensure EVERY field is a string. If a piece of information is not found, use an empty string.`;
+  Return ONLY valid JSON. Use empty strings for missing fields.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -72,15 +81,13 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
     });
 
     if (!response.text) {
-      console.warn("Gemini returned empty text response");
-      return [];
+      throw new Error("Gemini returned an empty response.");
     }
 
-    const resultText = response.text.trim();
-    const parsed: ScanResult = JSON.parse(resultText);
+    const parsed: ScanResult = JSON.parse(response.text.trim());
     
-    return (parsed.contacts || []).map((c: any) => ({
-      id: crypto.randomUUID(),
+    return (parsed.contacts || []).map((c: any, i: number) => ({
+      id: `${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
       name: String(c.name || '').trim(),
       title: String(c.title || '').trim(),
       company: String(c.company || '').trim(),
@@ -93,11 +100,13 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
       isEdited: false
     }));
   } catch (error: any) {
-    console.error("Gemini Extraction Error Details:", {
-      message: error.message,
-      stack: error.stack,
-      imagesCount: base64Images.length
-    });
-    throw error;
+    console.error("Gemini Error:", error);
+    // Provide more context in the error message for mobile debugging
+    let detailedMsg = error.message || "Unknown API Error";
+    if (detailedMsg.includes("403")) detailedMsg = "Access Denied (403). Check your API Key.";
+    if (detailedMsg.includes("400")) detailedMsg = "Bad Request (400). Payload might be too large.";
+    if (detailedMsg.includes("429")) detailedMsg = "Rate Limit Exceeded (429). Slow down.";
+    
+    throw new Error(detailedMsg);
   }
 };
