@@ -7,9 +7,9 @@ interface CameraScannerProps {
   isLoading: boolean;
 }
 
-// Further reduced for ultra-reliability on mobile deployments
-const MAX_IMAGE_WIDTH = 1000; 
-const JPEG_QUALITY = 0.4; 
+// Optimized dimensions for Gemini vision without exceeding mobile payload limits
+const MAX_IMAGE_WIDTH = 1280; 
+const JPEG_QUALITY = 0.6; 
 
 const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoading }) => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -20,13 +20,13 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
   const processImage = (base64Str: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.crossOrigin = "anonymous";
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
 
+          // Standardize dimensions for OCR accuracy vs payload size
           if (width > MAX_IMAGE_WIDTH) {
             height = (MAX_IMAGE_WIDTH / width) * height;
             width = MAX_IMAGE_WIDTH;
@@ -34,8 +34,8 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
 
           canvas.width = width;
           canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error("Could not get canvas context");
+          const ctx = canvas.getContext('2d', { alpha: false });
+          if (!ctx) throw new Error("Canvas context failed");
 
           ctx.fillStyle = "#FFFFFF";
           ctx.fillRect(0, 0, width, height);
@@ -47,7 +47,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
           reject(err);
         }
       };
-      img.onerror = () => reject(new Error("Image source failed to load."));
+      img.onerror = () => reject(new Error("Failed to load image into memory."));
       img.src = base64Str;
     });
   };
@@ -67,7 +67,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (event) => resolve(event.target?.result as string);
-          reader.onerror = () => reject(new Error("File reader failed."));
+          reader.onerror = reject;
           reader.readAsDataURL(file);
         });
         
@@ -76,8 +76,10 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
       }
 
       onImagesCaptured(processedImages);
+      // Reset input so the same file can be selected again if needed
+      if (e.target) e.target.value = '';
     } catch (err: any) {
-      alert("Mobile Error: " + (err.message || "Failed to process photo."));
+      alert("Error processing photo: " + (err.message || "Please try again."));
     } finally {
       setIsProcessing(false);
     }
@@ -98,21 +100,19 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
   return (
     <div className="flex flex-col items-center justify-center space-y-10 p-8 min-h-[70vh]">
       <div 
-        className="w-full max-w-sm aspect-[4/5] relative bg-white rounded-[40px] border-4 border-dashed border-gray-100 flex flex-col items-center justify-center transition-all hover:border-indigo-400 shadow-xl shadow-gray-100/50 overflow-hidden group cursor-pointer" 
+        className="w-full max-sm:max-w-xs max-w-sm aspect-[4/5] relative bg-white rounded-[40px] border-4 border-dashed border-gray-100 flex flex-col items-center justify-center transition-all hover:border-indigo-400 shadow-xl shadow-gray-100/50 overflow-hidden group cursor-pointer" 
         onClick={() => !showLoading && setIsChoosing(true)}
       >
         {!isChoosing ? (
-          <div className="flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+          <div className="flex flex-col items-center justify-center text-center px-4 animate-in fade-in zoom-in duration-300">
             <div className="w-24 h-24 bg-indigo-50 rounded-[30px] flex items-center justify-center mb-8 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-inner">
               <svg className="w-12 h-12 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
-            <div className="text-center space-y-2">
-              <p className="text-2xl font-black text-gray-900 tracking-tight">Radhey Scan</p>
-              <p className="text-sm text-gray-400 font-medium px-10">Tap to start scanning business cards</p>
-            </div>
+            <p className="text-2xl font-black text-gray-900 tracking-tight">Radhey Scan</p>
+            <p className="text-sm text-gray-400 font-medium mt-2">Tap to scan business cards</p>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center w-full h-full p-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -128,8 +128,8 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
                 </svg>
               </div>
               <div className="text-left">
-                <p className="font-bold">Capture from Camera</p>
-                <p className="text-[10px] opacity-80 uppercase font-black tracking-widest">Instant Scan</p>
+                <p className="font-bold">Use Camera</p>
+                <p className="text-[10px] opacity-80 uppercase font-black tracking-widest">Capture Now</p>
               </div>
             </button>
 
@@ -143,8 +143,8 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
                 </svg>
               </div>
               <div className="text-left">
-                <p className="font-bold">Upload from Gallery</p>
-                <p className="text-[10px] text-indigo-400 uppercase font-black tracking-widest">Select Photos</p>
+                <p className="font-bold">Photo Gallery</p>
+                <p className="text-[10px] text-indigo-400 uppercase font-black tracking-widest">Select Files</p>
               </div>
             </button>
 
@@ -154,6 +154,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
           </div>
         )}
 
+        {/* Actionable Inputs */}
         <input 
           type="file" 
           ref={cameraInputRef}
@@ -184,13 +185,13 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
              </div>
           </div>
           <h2 className="text-2xl font-black text-gray-900 mt-10 mb-3 tracking-tight">
-            {isProcessing ? "Optimizing Images..." : "Radhey AI Analyzing..."}
+            {isProcessing ? "Optimizing Photos..." : "AI is Thinking..."}
           </h2>
           <div className="space-y-1">
             <p className="text-indigo-600 font-bold text-xs uppercase tracking-widest">
-              {isProcessing ? "Reducing File Size" : "Extracting Details"}
+              {isProcessing ? "Pre-processing" : "Extracting Contacts"}
             </p>
-            <p className="text-gray-400 text-sm max-w-[200px] mx-auto">This may take a moment on slower connections.</p>
+            <p className="text-gray-400 text-sm max-w-[240px] mx-auto">This works best with clear, non-blurry business card photos.</p>
           </div>
         </div>
       )}

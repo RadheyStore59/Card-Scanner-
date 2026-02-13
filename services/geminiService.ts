@@ -3,18 +3,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Contact, ScanResult } from "../types";
 
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
-  // Check for API Key presence
-  const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === "YOUR_API_KEY") {
-    throw new Error("API Key is missing. Please check your deployment environment variables.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-  // Using gemini-2.5-flash as requested by the PRD
-  const model = 'gemini-2.5-flash';
+  // Use the pre-configured process.env.API_KEY directly as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const imageParts = base64Images.map((img, index) => {
-    const base64Data = img.split(',')[1] || img;
+  // Use gemini-3-flash-preview for the best balance of vision accuracy and extraction speed
+  const model = 'gemini-3-flash-preview';
+  
+  const imageParts = base64Images.map((img) => {
+    // Cleanly extract just the base64 data portion
+    const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
     const mimeMatch = img.match(/^data:([^;]+);/);
     const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
     
@@ -26,22 +23,25 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
     };
   });
 
-  const prompt = `Act as a high-precision OCR and contact extraction engine. 
-  Extract structured contact data from the provided business card image(s).
-  Return a JSON object with a "contacts" array.
-  
-  For each person, extract:
-  - name (Full Name)
-  - title (Job Title)
-  - company (Company Name)
-  - email (Professional email)
-  - phone (Phone number)
-  - website (URL)
-  - address (Physical address)
-  - linkedin (LinkedIn URL)
-  - notes (Any other info)
+  const prompt = `You are a professional business card scanner. 
+Analyze the provided images and extract structured contact information for EVERY card found.
+Return the data as a JSON object with a "contacts" array.
 
-  Return ONLY valid JSON. Use empty strings for missing fields.`;
+Fields to extract:
+- name (Full Name)
+- title (Job Position)
+- company (Company/Organization)
+- email (Email address)
+- phone (Phone number)
+- website (Website URL)
+- address (Full physical address)
+- linkedin (LinkedIn profile link or username)
+- notes (Slogan, certifications, or other details)
+
+Rules:
+1. Return ONLY valid JSON.
+2. Use empty strings "" for missing values.
+3. If multiple people are on one card or multiple cards are present, create an entry for each.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -80,14 +80,15 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
       }
     });
 
-    if (!response.text) {
-      throw new Error("Gemini returned an empty response.");
+    const resultText = response.text;
+    if (!resultText) {
+      throw new Error("The AI returned an empty response. Please try a clearer photo.");
     }
 
-    const parsed: ScanResult = JSON.parse(response.text.trim());
+    const parsed: ScanResult = JSON.parse(resultText.trim());
     
     return (parsed.contacts || []).map((c: any, i: number) => ({
-      id: `${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `contact-${Date.now()}-${i}`,
       name: String(c.name || '').trim(),
       title: String(c.title || '').trim(),
       company: String(c.company || '').trim(),
@@ -100,13 +101,11 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
       isEdited: false
     }));
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    // Provide more context in the error message for mobile debugging
-    let detailedMsg = error.message || "Unknown API Error";
-    if (detailedMsg.includes("403")) detailedMsg = "Access Denied (403). Check your API Key.";
-    if (detailedMsg.includes("400")) detailedMsg = "Bad Request (400). Payload might be too large.";
-    if (detailedMsg.includes("429")) detailedMsg = "Rate Limit Exceeded (429). Slow down.";
-    
-    throw new Error(detailedMsg);
+    console.error("Gemini Extraction Error:", error);
+    // Generic error messages are often better for users unless it's a specific API issue we can handle
+    if (error.message?.includes("API_KEY_INVALID")) {
+      throw new Error("System configuration error: Invalid API Key.");
+    }
+    throw new Error("Failed to analyze images. Please ensure the cards are well-lit and clearly visible.");
   }
 };
