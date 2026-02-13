@@ -3,14 +3,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Contact, ScanResult } from "../types";
 
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
-  // Use the pre-configured process.env.API_KEY directly as per guidelines
+  // Create instance right before call to ensure latest API key from browser environment
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  // Use gemini-3-flash-preview for the best balance of vision accuracy and extraction speed
   const model = 'gemini-3-flash-preview';
   
   const imageParts = base64Images.map((img) => {
-    // Cleanly extract just the base64 data portion
     const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
     const mimeMatch = img.match(/^data:([^;]+);/);
     const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
@@ -23,25 +20,20 @@ export const extractBusinessCards = async (base64Images: string[]): Promise<Cont
     };
   });
 
-  const prompt = `You are a professional business card scanner. 
-Analyze the provided images and extract structured contact information for EVERY card found.
-Return the data as a JSON object with a "contacts" array.
-
-Fields to extract:
+  const prompt = `Extract all contact information from these business card images.
+Return a JSON object with a "contacts" array.
+For each person found, include:
 - name (Full Name)
 - title (Job Position)
-- company (Company/Organization)
-- email (Email address)
-- phone (Phone number)
-- website (Website URL)
-- address (Full physical address)
-- linkedin (LinkedIn profile link or username)
-- notes (Slogan, certifications, or other details)
+- company (Company)
+- email (Email)
+- phone (Phone)
+- website (URL)
+- address (Address)
+- linkedin (LinkedIn)
+- notes (Extra info)
 
-Rules:
-1. Return ONLY valid JSON.
-2. Use empty strings "" for missing values.
-3. If multiple people are on one card or multiple cards are present, create an entry for each.`;
+Return ONLY valid JSON. Use "" for missing fields.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -81,15 +73,13 @@ Rules:
     });
 
     const resultText = response.text;
-    if (!resultText) {
-      throw new Error("The AI returned an empty response. Please try a clearer photo.");
-    }
+    if (!resultText) throw new Error("Empty AI response.");
 
     const parsed: ScanResult = JSON.parse(resultText.trim());
     
     return (parsed.contacts || []).map((c: any, i: number) => ({
       id: `contact-${Date.now()}-${i}`,
-      name: String(c.name || '').trim(),
+      name: String(c.name || '').trim() || 'Unknown',
       title: String(c.title || '').trim(),
       company: String(c.company || '').trim(),
       email: String(c.email || '').trim(),
@@ -102,10 +92,12 @@ Rules:
     }));
   } catch (error: any) {
     console.error("Gemini Extraction Error:", error);
-    // Generic error messages are often better for users unless it's a specific API issue we can handle
-    if (error.message?.includes("API_KEY_INVALID")) {
-      throw new Error("System configuration error: Invalid API Key.");
+    
+    // Check if the error is related to missing/invalid entity (API Key issue)
+    if (error.message?.includes("Requested entity was not found") || error.message?.includes("API key not found")) {
+      throw new Error("API_KEY_ERROR");
     }
-    throw new Error("Failed to analyze images. Please ensure the cards are well-lit and clearly visible.");
+    
+    throw new Error(error.message || "Failed to analyze images. Try a clearer photo.");
   }
 };

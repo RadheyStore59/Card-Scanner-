@@ -7,9 +7,9 @@ interface CameraScannerProps {
   isLoading: boolean;
 }
 
-// Optimized dimensions for Gemini vision without exceeding mobile payload limits
-const MAX_IMAGE_WIDTH = 1280; 
-const JPEG_QUALITY = 0.6; 
+// 800px is optimal for mobile OCR: small enough for fast upload, large enough for clear text.
+const MAX_IMAGE_WIDTH = 800; 
+const JPEG_QUALITY = 0.5; 
 
 const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoading }) => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +26,6 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
           let width = img.width;
           let height = img.height;
 
-          // Standardize dimensions for OCR accuracy vs payload size
           if (width > MAX_IMAGE_WIDTH) {
             height = (MAX_IMAGE_WIDTH / width) * height;
             width = MAX_IMAGE_WIDTH;
@@ -47,7 +46,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
           reject(err);
         }
       };
-      img.onerror = () => reject(new Error("Failed to load image into memory."));
+      img.onerror = () => reject(new Error("Image failed to load."));
       img.src = base64Str;
     });
   };
@@ -76,10 +75,9 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
       }
 
       onImagesCaptured(processedImages);
-      // Reset input so the same file can be selected again if needed
       if (e.target) e.target.value = '';
     } catch (err: any) {
-      alert("Error processing photo: " + (err.message || "Please try again."));
+      alert("Processing Error: " + (err.message || "Please try again."));
     } finally {
       setIsProcessing(false);
     }
@@ -112,11 +110,11 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
               </svg>
             </div>
             <p className="text-2xl font-black text-gray-900 tracking-tight">Radhey Scan</p>
-            <p className="text-sm text-gray-400 font-medium mt-2">Tap to scan business cards</p>
+            <p className="text-sm text-gray-400 font-medium mt-2">Tap to scan cards</p>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center w-full h-full p-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <h3 className="text-lg font-bold text-gray-800 mb-2">Select Source</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Capture Method</h3>
             
             <button 
               onClick={triggerCamera}
@@ -128,8 +126,8 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
                 </svg>
               </div>
               <div className="text-left">
-                <p className="font-bold">Use Camera</p>
-                <p className="text-[10px] opacity-80 uppercase font-black tracking-widest">Capture Now</p>
+                <p className="font-bold">Scan with Camera</p>
+                <p className="text-[10px] opacity-80 uppercase font-black tracking-widest">Instant OCR</p>
               </div>
             </button>
 
@@ -143,7 +141,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
                 </svg>
               </div>
               <div className="text-left">
-                <p className="font-bold">Photo Gallery</p>
+                <p className="font-bold">Pick from Photos</p>
                 <p className="text-[10px] text-indigo-400 uppercase font-black tracking-widest">Select Files</p>
               </div>
             </button>
@@ -154,23 +152,8 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
           </div>
         )}
 
-        {/* Actionable Inputs */}
-        <input 
-          type="file" 
-          ref={cameraInputRef}
-          onChange={handleFileChange}
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-        />
-        <input 
-          type="file" 
-          ref={galleryInputRef}
-          onChange={handleFileChange}
-          accept="image/*"
-          multiple
-          className="hidden"
-        />
+        <input type="file" ref={cameraInputRef} onChange={handleFileChange} accept="image/*" capture="environment" className="hidden" />
+        <input type="file" ref={galleryInputRef} onChange={handleFileChange} accept="image/*" multiple className="hidden" />
       </div>
 
       {showLoading && (
@@ -185,13 +168,13 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onImagesCaptured, isLoadi
              </div>
           </div>
           <h2 className="text-2xl font-black text-gray-900 mt-10 mb-3 tracking-tight">
-            {isProcessing ? "Optimizing Photos..." : "AI is Thinking..."}
+            {isProcessing ? "Compressing..." : "Radhey AI Extraction..."}
           </h2>
           <div className="space-y-1">
             <p className="text-indigo-600 font-bold text-xs uppercase tracking-widest">
-              {isProcessing ? "Pre-processing" : "Extracting Contacts"}
+              {isProcessing ? "Optimizing for mobile" : "Processing Business Card"}
             </p>
-            <p className="text-gray-400 text-sm max-w-[240px] mx-auto">This works best with clear, non-blurry business card photos.</p>
+            <p className="text-gray-400 text-sm max-w-[240px] mx-auto">This takes ~5 seconds on 4G connections.</p>
           </div>
         </div>
       )}
