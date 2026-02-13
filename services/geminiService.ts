@@ -2,18 +2,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Contact } from "../types";
 
-// Extracts business card data from a set of base64 image strings using Gemini 3 Pro.
+/**
+ * Extracts business card data from a set of base64 image strings using Gemini 2.5 Flash.
+ */
 export const extractBusinessCards = async (base64Images: string[]): Promise<Contact[]> => {
-  // Directly initialize using the injected environment variable as per guidelines
+  // Always get the latest API key from the environment
   const apiKey = process.env.API_KEY;
 
-  if (!apiKey) {
-    throw new Error("API Key is missing from the execution context.");
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("API Key is missing from the execution context. Please connect your key.");
   }
 
+  // Use a fresh instance to ensure the most up-to-date key is used
   const ai = new GoogleGenAI({ apiKey });
-  // Using gemini-3-pro-preview for high accuracy extraction of structured data from images
-  const model = 'gemini-3-pro-preview';
+  const model = 'gemini-2.5-flash';
   
   const imageParts = base64Images.map((img) => {
     const base64Data = img.includes('base64,') ? img.split('base64,')[1] : img;
@@ -80,25 +82,31 @@ Return ONLY valid JSON. Use empty strings for missing fields.`;
       },
     });
 
-    // Extract text from the response using the .text property
     const jsonStr = response.text;
     if (!jsonStr) {
       throw new Error("No response text from Gemini API");
     }
 
-    // Parse the JSON output to extract contact list
     const result = JSON.parse(jsonStr.trim());
     
-    // Map data to local Contact type and ensure unique IDs
     const contacts: Contact[] = (result.contacts || []).map((c: any) => ({
-      ...c,
       id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+      name: c.name || '',
+      title: c.title || '',
+      company: c.company || '',
+      email: c.email || '',
+      phone: c.phone || '',
+      website: c.website || '',
+      address: c.address || '',
+      linkedin: c.linkedin || '',
+      notes: c.notes || '',
       isEdited: false
     }));
 
     return contacts;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini API Error during extraction:", error);
+    // Propagate errors to the UI for handling (e.g., key re-selection)
     throw error;
   }
 };
